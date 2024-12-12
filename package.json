@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "web3": "^4.13.0"
+  },
+  "devDependencies": {
+    "ganache-cli": "^6.12.2"
+  }
+}
