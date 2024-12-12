@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.6.1/dist/web3.min.js"></script>
+  </head>
+  <body>
+    <button id="connect-button">Connect Metamask</button>
+    <p id="bnb-balance-display">BNB Balance: --</p>
+    <button id="import-token-button">Import Token</button>
+    <button id="env-balance-button">Check ENV Balance</button>
+    <p id="balance-display">ENV Balance: --</p>
+    <input id="recipient-address" type="text" placeholder="Recipient Address" />
+    <input id="send-amount" type="number" placeholder="Amount of ENV" />
+    <button id="send-button">Send ENV</button>
+    <p id="transaction-status"></p> 
+    <input id="new-owner-address" type="text" placeholder="Enter New Owner Address" />
+    <button id="transfer-ownership-button">Transfer Ownership</button>
+    <p id="ownership-hash"></p> 
+
+    <script>
+      let account;
+
+      document.getElementById('connect-button').addEventListener('click', event => { 
+        let button = event.target;
+        ethereum.request({method: 'eth_requestAccounts'}).then(accounts => {
+          account = accounts[0];
+          console.log(account);
+          button.textContent = account;
+
+          // Existing code for checking ETH balance
+          ethereum.request({method: 'eth_getBalance' , params: [account, 'latest']}).then(result => {
+            console.log(result);
+            let wei = parseInt(result,16);
+            let balance = wei / (10**18);
+            console.log(balance + " BNB");
+            document.getElementById('bnb-balance-display').textContent = `${balance} BNB`;
+          });
+        });
+      });
+
+      document.getElementById('env-balance-button').addEventListener('click', () => {
+        ethereum.request({
+          method: 'eth_call',
+          params: [{
+            to: '0xa45eC1cbA9949980f6814a9C84afaa0a58f1771b', // Replace with the ENV token contract address
+            data: '0x70a08231000000000000000000000000' + account.substring(2)
+          }, 'latest']
+        }).then(result => {
+          console.log(result);
+          let wei = parseInt(result, 16);
+          const TOKEN_DECIMALS = 20; // Replace with the actual decimal count of ENV coin
+          let balance = wei / (10**TOKEN_DECIMALS);
+          console.log(balance + " ENV");
+          document.getElementById('balance-display').textContent = `${balance} ENV`;
+        });
+      });
+
+      if(window.ethereum.networkVersion == 10) {
+        document.getElementById('send-button').addEventListener('click', event =>{
+          let transactionParam = {
+            to: '0x45B6b39e1Cf8A6b4Ff2720f6BA0089d4574126E5',
+            from: account,
+            value: '0x38D7EA4C68000'
+          };
+          
+          ethereum.request({method: 'eth_sendTransaction', params:[transactionParam]}).then(txhash => {
+            console.log(txhash);
+            checkTransactionconfirmation(txhash).then(r => alert(r));
+          });
+        });
+      }
+
+      document.getElementById('send-button').addEventListener('click', () => {
+        const recipient = document.getElementById('recipient-address').value;
+        const amount = document.getElementById('send-amount').value;
+        const TOKEN_DECIMALS = 20; // Replace with the actual decimal count of ENV coin
+        const amountInWei = BigInt(amount * (10 ** TOKEN_DECIMALS));
+        const data = '0xa9059cbb' // transfer function identifier
+                     + recipient.substring(2).padStart(64, '0')
+                     + amountInWei.toString(16).padStart(64, '0');
+
+        ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: account,
+            to: '0xa45eC1cbA9949980f6814a9C84afaa0a58f1771b', // Replace with the ENV token contract address
+            data: data
+          }]
+        }).then((txHash) => {
+          console.log('Transaction hash:', txHash);
+          document.getElementById('transaction-status').textContent = `Your transaction has been completed! Transaction hash: ${txHash}`;
+          document.getElementById('transaction-status').style.color = 'green';
+        }).catch((error) => {
+          console.error('Error sending transaction:', error);
+          document.getElementById('transaction-status').textContent = `Your transaction has failed! Error message: ${error}`;
+          document.getElementById('transaction-status').style.color = 'red';
+        });
+      });
+
+      function checkTransactionconfirmation(txhash) {
+        let checkTransactionLoop = () => {
+          return ethereum.request({method:'eth_getTransactionReceipt',params:[txhash]}).then(r => {
+            if(r !=null) return 'confirmed';
+            else return checkTransactionLoop();
+          });
+        };
+
+        return checkTransactionLoop();
+      }
+
+      
+    let web3;
+    window.addEventListener('load', async () => {
+      // Check if Metamask is available
+      if (typeof window.ethereum !== 'undefined') {
+        web3 = new Web3(window.ethereum);
+        try {
+          // Request account access
+          await window.ethereum.enable();
+        } catch (error) {
+          console.error("User denied account access");
+        }
+      } else {
+        console.error('Ethereum wallet is not available. Please install MetaMask or similar.');
+      }
+    });
+
+      document.getElementById('import-token-button').addEventListener('click', () => {
+        const tokenAddress = '0xa45eC1cbA9949980f6814a9C84afaa0a58f1771b'; // Replace with the token's contract address
+        const tokenSymbol = 'ENV'; // Replace with the token's symbol
+        const tokenDecimals = 20; // Replace with the token's decimal count
+
+        ethereum
+          .request({
+            method: 'wallet_watchAsset',
+            params: {
+              type: 'ERC20',
+              options: {
+                address: tokenAddress,
+                symbol: tokenSymbol,
+                decimals: tokenDecimals,
+                image: '', // You can provide a URL to an image for the token logo
+              },
+            },
+          })
+          .then((success) => {
+            if (success) {
+              console.log(`Token ${tokenSymbol} added to Metamask`);
+            } else {
+              console.error(`Failed to add token ${tokenSymbol} to Metamask`);
+            }
+          });
+      });
+
+      const contractABI = [{"inputs":[{"internalType":"address","name":"initialOwner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"allowance","type":"uint256"},{"internalType":"uint256","name":"needed","type":"uint256"}],"name":"BEP20InsufficientAllowance","type":"error"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"balance","type":"uint256"},{"internalType":"uint256","name":"needed","type":"uint256"}],"name":"BEP20InsufficientBalance","type":"error"},{"inputs":[{"internalType":"address","name":"approver","type":"address"}],"name":"BEP20InvalidApprover","type":"error"},{"inputs":[{"internalType":"address","name":"receiver","type":"address"}],"name":"BEP20InvalidReceiver","type":"error"},{"inputs":[{"internalType":"address","name":"sender","type":"address"}],"name":"BEP20InvalidSender","type":"error"},{"inputs":[{"internalType":"address","name":"spender","type":"address"}],"name":"BEP20InvalidSpender","type":"error"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OwnableInvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"OwnableUnauthorizedAccount","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"transferFrom","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"}];
+      const contractAddress = '0xa45eC1cbA9949980f6814a9C84afaa0a58f1771b';
+
+    document.getElementById('transfer-ownership-button').addEventListener('click', async () => {
+      const newOwnerAddress = document.getElementById('new-owner-address').value.trim();
+
+      if (!web3) {
+        console.error('Web3 is not initialized.');
+        return;
+      }
+
+      if (!web3.utils.isAddress(newOwnerAddress)) {
+        console.error('Invalid Ethereum address.');
+        return;
+      }
+
+      // Create a contract instance
+      const contract = new web3.eth.Contract(contractABI, contractAddress);
+
+      // Get the current user's account
+      const accounts = await web3.eth.getAccounts();
+      if (accounts.length === 0) {
+        console.error("No account is available. Please connect to Metamask.");
+        return;
+      }
+
+      // Transfer ownership to the new address
+      try {
+        const result = await contract.methods.transferOwnership(newOwnerAddress).send({ from: accounts[0] });
+        console.log('Ownership transferred successfully. Transaction Hash:', result.transactionHash);
+        document.getElementById('ownership-hash').textContent = `Success! Hash: ${result.transactionHash}`;
+      } catch (error) {
+        console.error('Error transferring ownership:', error);
+        document.getElementById('ownership-hash').textContent = `Failed! Hash: ${result.transactionHash}`;
+      }
+    });
+
+
+    </script>  
+  </body>
+</html>
